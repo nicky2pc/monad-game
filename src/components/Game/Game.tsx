@@ -16,18 +16,10 @@ import TransactionsTable from '../TransactionsTable/TransactionsTable.tsx';
 import GameUI from '../GameUI/GameUI.tsx';
 import LoginBtn from '../LoginBtn/LoginBtn.tsx';
 
-import { useAccount, useConnect, useBalance as useWagmiBalance } from 'wagmi';
-import { config } from '../../providers/wagmiConfig';
-
 import {usePrivy, useWallets} from '@privy-io/react-auth';
 const Game = () => {
 
-  const { isConnected, address } = useAccount();
-  const { connect, connectors } = useConnect();
-  const { data: balanceData, refetch: refetchBalance } = useWagmiBalance({
-    address: address as `0x${string}`,
-    chainId: config.chains[0].id,
-  });
+  const {authenticated, ready, login, user} = usePrivy();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const explosions = useRef<{ x: number; y: number; frame: number, width: number, height: number }[]>([]);
   const enemies = useRef<Enemy[]>([]);
@@ -317,12 +309,16 @@ const Game = () => {
     const totalScore = totalScoreRef.current;
     handleTotalScore(totalScore, true);
     setGameState("gameover");
-    if (isConnected && address) {
-      setTimeout(async () => {
-        await refetchBalance();
-      }, 1000);
+
+    if (authenticated && wallets.length > 0) {
+      const privyWallet = wallets.find((wallet) => wallet.walletClientType === 'privy');
+      if (privyWallet) {
+        setTimeout(async () => {
+          await updateBalance(privyWallet);
+        }, 1000);
+      }
     }
-  };
+  }
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 1100px)");
@@ -698,29 +694,40 @@ const Game = () => {
   };
 
   const checkBalanceAndStartGame = async () => {
-    if (isConnected && address) {
-      const currentBalance = balanceData?.formatted;
-      if (currentBalance && parseFloat(currentBalance) < 0.003) {
-        setShowFaucetModal(true);
-        return;
+    if (authenticated && wallets.length > 0) {
+      const privyWallet = wallets.find((wallet) => wallet.walletClientType === 'privy');
+      
+      if (privyWallet) {
+        const currentBalance = await updateBalance(privyWallet);
+        
+        if (currentBalance && parseFloat(currentBalance) < 0.003) {
+          setShowFaucetModal(true);
+          return;
+        }
       }
     }
+    
     startCountdown();
   };
 
   const handleFaucetAndStartGame = async () => {
-    if (isConnected && address) {
-      try {
-        await handleFaucet(address);
-        setTimeout(async () => {
-          await refetchBalance();
+    if (authenticated && wallets.length > 0) {
+      const privyWallet = wallets.find((wallet) => wallet.walletClientType === 'privy');
+      
+      if (privyWallet) {
+        try {
+          await handleFaucet(privyWallet.address);
+          
+          setTimeout(async () => {
+            await updateBalance(privyWallet);
+            setShowFaucetModal(false);
+            startCountdown();
+          }, 5000);
+        } catch (error) {
+          console.error("Faucet error in Game:", error);
           setShowFaucetModal(false);
           startCountdown();
-        }, 5000);
-      } catch (error) {
-        console.error("Faucet error:", error);
-        setShowFaucetModal(false);
-        startCountdown();
+        }
       }
     }
   };
@@ -878,18 +885,61 @@ const Game = () => {
           <>
             <div className="bg">
               <h1 className='total-score h1'>Kill everyone <br /> Dodge everything</h1>
-              <button disabled={isStartButtonDisabled} className="leaderboard-button" onClick={() => setIsLeaderboardOpen(true)}>
-                Leaderboard
-              </button>
-              <div className="game-menu" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: isConnected ? 'row-reverse' : 'column', gap: '29px', top: isConnected ? '50%' : '54%' }}>
-                <div className="flex-wrapper">
-                  {!isConnected && (
-                    <button className='ui-login-btn' onClick={() => connect({ connector: connectors[0] })}>
-                      Подключить кошелек
-                    </button>
-                  )}
-                  <button className={isConnected ? 'play-btn' : 'play-btn-guest'} onClick={checkBalanceAndStartGame} disabled={isStartButtonDisabled}>
-                    {isConnected ? 'Играть' : 'Играть как гость'}
+                <button disabled={isStartButtonDisabled} className="leaderboard-button" onClick={() => setIsLeaderboardOpen(true)}>
+                  Leaderboard
+                </button>
+                <LoginBtn />
+
+                <a 
+                  href="https://twitter.com/monagayanimals" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  style={{
+                    position: 'absolute',
+                    bottom: '20px',
+                    right: '20px',
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '50%',
+                    backgroundColor: '#000',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    textDecoration: 'none',
+                    transition: 'opacity 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+                  onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z" fill="white"/>
+                  </svg>
+                </a>
+
+              <div className="game-menu" style={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                flexDirection: authenticated ? "row-reverse" : "column" ,
+                gap: "29px",
+                top: authenticated ? "50%" : "54%"
+              }}>
+             
+                <div style={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: "10px"
+              }} className="flex-wrapper">
+                {!authenticated && (
+                        <button className='ui-login-btn' onClick={() => login()} disabled={!ready}>
+                          Start / Login
+                        </button>
+                 )}  
+
+                  <button className={authenticated ? "play-btn" : "play-btn-guest"} onClick={checkBalanceAndStartGame} disabled={isStartButtonDisabled}>
+                    {authenticated ? "Play" : "Play as a guest"}
                   </button>
                 </div>
                   <button disabled={isStartButtonDisabled} style={{
