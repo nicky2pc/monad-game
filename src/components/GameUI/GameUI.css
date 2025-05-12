@@ -1,0 +1,43 @@
+.game-ui-list {
+  position: absolute;
+  top: 10px;
+  left: -120px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.game-ui {
+  color: white;
+  font-family: Arial, sans-serif;
+  z-index: 1;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 8px 12px;
+  font-weight: 700;
+  border-radius: 5px;
+}
+
+.game-ui-list-bottom {
+  top: 10px;
+  right: -230px;
+  left: auto;
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+.ui-counter {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.counter-label {
+  font-weight: bold;
+}
+
+.counter-value {
+  color: #6e54ff;
+  font-size: 1.2em;
+}
